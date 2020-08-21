@@ -7,7 +7,7 @@ import (
 	"github.com/kyokomi/emoji"
 	"github.com/microsoft/fabrikate/core"
 	"github.com/microsoft/fabrikate/generators"
-	log "github.com/sirupsen/logrus"
+	"github.com/microsoft/fabrikate/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -21,32 +21,53 @@ func Install(path string) (err error) {
 		if err != nil {
 			return err
 		}
-		log.Info(emoji.Sprintf(":mag: Using %s: %s", tool, path))
+		logger.Info(emoji.Sprintf(":mag: Using %s: %s", tool, path))
 	}
 
-	log.Info(emoji.Sprintf(":point_right: Initializing Helm"))
-	if err = exec.Command("helm", "init", "--client-only").Run(); err != nil {
+	// By default, Helm 2 used to have the "stable" repo. This is assumed
+	// to exist in Fabrikate as a non-http repo.
+	// See timeline/deprecation schedule: https://github.com/helm/charts
+	logger.Info(emoji.Sprintf(":point_right: Adding stable repository"))
+	if output, err := exec.Command("helm", "repo", "add", "stable", "https://kubernetes-charts.storage.googleapis.com").CombinedOutput(); err != nil {
+		logger.Error(emoji.Sprintf(":no_entry_sign: %s: %s", err, output))
 		return err
 	}
 
+	rootInit := func(startingPath string, environments []string, c core.Component) (component core.Component, err error) {
+		return c.InstallRoot(startingPath, environments)
+	}
+
 	results := core.WalkComponentTree(path, []string{}, func(path string, component *core.Component) (err error) {
-		log.Info(emoji.Sprintf(":point_right: Starting install for component: %s", component.Name))
+		logger.Info(emoji.Sprintf(":point_right: Starting install for component: %s", component.Name))
 
 		var generator core.Generator
 
 		switch component.ComponentType {
 		case "helm":
 			generator = &generators.HelmGenerator{}
+		case "static":
+			generator = &generators.StaticGenerator{}
+		}
+
+		// Load access tokens and add them to the global token list. Do not overwrite if already present
+		if accessTokens, err := component.GetAccessTokens(); err != nil {
+			return err
+		} else if len(accessTokens) > 0 {
+			for repo, token := range accessTokens {
+				if _, exists := core.GitAccessTokens.Get(repo); !exists {
+					core.GitAccessTokens.Set(repo, token)
+				}
+			}
 		}
 
 		if err := component.Install(path, generator); err != nil {
 			return err
 		}
 
-		log.Info(emoji.Sprintf(":point_left: Finished install for component: %s", component.Name))
+		logger.Info(emoji.Sprintf(":point_left: Finished install for component: %s", component.Name))
 
 		return err
-	})
+	}, rootInit)
 
 	components, err := core.SynchronizeWalkResult(results)
 	if err != nil {
@@ -54,9 +75,9 @@ func Install(path string) (err error) {
 	}
 
 	for _, component := range components {
-		log.Info(emoji.Sprintf(":white_check_mark: Installed successfully: %s", component.Name))
+		logger.Info(emoji.Sprintf(":white_check_mark: Installed successfully: %s", component.Name))
 	}
-	log.Info(emoji.Sprintf(":raised_hands: Finished install"))
+	logger.Info(emoji.Sprintf(":raised_hands: Finished install"))
 
 	return err
 }

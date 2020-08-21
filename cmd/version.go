@@ -15,7 +15,7 @@
 package cmd
 
 import (
-	log "github.com/sirupsen/logrus"
+	"github.com/microsoft/fabrikate/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +30,7 @@ var versionCmd = &cobra.Command{
 
 // PrintVersion prints the current version of Fabrikate being used.
 func PrintVersion() {
-	log.Println("fab version 0.9.0")
+	logger.Info("fab version 0.17.3")
 }
 
 func init() {

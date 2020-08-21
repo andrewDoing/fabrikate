@@ -1,9 +1,0 @@
-{
-  "name": "microservices-workload",
-  "subcomponents": [
-    {
-      "name": "infra",
-      "source": "./infra"
-    }
-  ]
-}

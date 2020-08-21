@@ -17,7 +17,7 @@ func TestAdd(t *testing.T) {
 		_ = os.Chdir(cwd)
 	}()
 
-	err = os.Chdir("../test/fixtures/add")
+	err = os.Chdir("../testdata/add")
 	assert.Nil(t, err)
 
 	_ = os.Remove("./component.yaml")
@@ -27,6 +27,7 @@ func TestAdd(t *testing.T) {
 		Source:        "https://github.com/timfpark/fabrikate-cloud-native",
 		Method:        "git",
 		ComponentType: "component",
+		Version:       "8ad79e73e0665e347e1553ad7ca32b6e590e007a",
 	}
 
 	err = Add(componentComponent)
@@ -42,6 +43,13 @@ func TestAdd(t *testing.T) {
 
 	err = Add(helmComponent)
 	assert.Nil(t, err)
+
+	// Ensure the correct values are being added to the added subcomponents
+	currentComponent := core.Component{}
+	currentComponent, err = currentComponent.LoadComponent()
+	assert.Nil(t, err)
+	assert.EqualValues(t, componentComponent, currentComponent.Subcomponents[0])
+	assert.EqualValues(t, helmComponent, currentComponent.Subcomponents[1])
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Test adding a subcomponent
@@ -82,6 +90,27 @@ func TestAdd(t *testing.T) {
 	// there should be 2 subcomponents now
 	assert.Nil(t, err)
 	assert.True(t, len(componentComponent.Subcomponents) == 2)
+
+	// Testing: ensure subcomponents sorted by name
+	componentComponent.Subcomponents = []core.Component{}
+	assert.True(t, len(componentComponent.Subcomponents) == 0)
+	subcomponentA := core.Component{
+		Name: "a",
+	}
+	subcomponentB := core.Component{
+		Name: "b",
+	}
+	subcomponentC := core.Component{
+		Name: "c",
+	}
+
+	// Add subcomponents in random order
+	assert.Nil(t, componentComponent.AddSubcomponent(subcomponentC, subcomponentA, subcomponentB))
+
+	// Subcomponent should be sorted by name
+	assert.EqualValues(t, componentComponent.Subcomponents[0].Name, "a")
+	assert.EqualValues(t, componentComponent.Subcomponents[1].Name, "b")
+	assert.EqualValues(t, componentComponent.Subcomponents[2].Name, "c")
 	////////////////////////////////////////////////////////////////////////////////
 	//End adding a subcomponent
 	////////////////////////////////////////////////////////////////////////////////

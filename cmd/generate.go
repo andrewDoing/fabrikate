@@ -11,7 +11,7 @@ import (
 	"github.com/kyokomi/emoji"
 	"github.com/microsoft/fabrikate/core"
 	"github.com/microsoft/fabrikate/generators"
-	log "github.com/sirupsen/logrus"
+	"github.com/microsoft/fabrikate/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -21,15 +21,14 @@ func writeGeneratedManifests(generationPath string, components []core.Component)
 
 	for _, component := range components {
 		componentGenerationPath := path.Join(generationPath, component.LogicalPath)
-		err := os.MkdirAll(componentGenerationPath, 0755)
-		if err != nil {
+		if err = os.MkdirAll(componentGenerationPath, 0777); err != nil {
 			return err
 		}
 
 		componentYAMLFilename := fmt.Sprintf("%s.yaml", component.Name)
 		componentYAMLFilePath := path.Join(componentGenerationPath, componentYAMLFilename)
 
-		log.Info(emoji.Sprintf(":floppy_disk: Writing %s", componentYAMLFilePath))
+		logger.Info(emoji.Sprintf(":floppy_disk: Writing %s", componentYAMLFilePath))
 
 		err = ioutil.WriteFile(componentYAMLFilePath, []byte(component.Manifest), 0644)
 		if err != nil {
@@ -41,12 +40,10 @@ func writeGeneratedManifests(generationPath string, components []core.Component)
 }
 
 func validateGeneratedManifests(generationPath string) (err error) {
-	log.Println(emoji.Sprintf(":microscope: Validating generated manifests in path %s", generationPath))
-	output, err := exec.Command("kubectl", "apply", "--validate=true", "--dry-run", "--recursive", "-f", generationPath).Output()
-
-	if err != nil {
+	logger.Info(emoji.Sprintf(":microscope: Validating generated manifests in path %s", generationPath))
+	if output, err := exec.Command("kubectl", "apply", "--validate=true", "--dry-run", "--recursive", "-f", generationPath).Output(); err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
-			log.Errorf("Validating generated manifests failed with: %s: output: %s\n", ee.Stderr, output)
+			logger.Error(fmt.Sprintf("Validating generated manifests failed with: %s: output: %s", ee.Stderr, output))
 			return err
 		}
 	}
@@ -59,6 +56,11 @@ func validateGeneratedManifests(generationPath string) (err error) {
 // of the generated manifests at the very end.
 func Generate(startPath string, environments []string, validate bool) (components []core.Component, err error) {
 	// Iterate through component tree and generate
+
+	rootInit := func(startPath string, environments []string, c core.Component) (component core.Component, err error) {
+		return c.UpdateComponentPath(startPath, environments)
+	}
+
 	results := core.WalkComponentTree(startPath, environments, func(path string, component *core.Component) (err error) {
 
 		var generator core.Generator
@@ -70,7 +72,7 @@ func Generate(startPath string, environments []string, validate bool) (component
 		}
 
 		return component.Generate(generator)
-	})
+	}, rootInit)
 
 	components, err = core.SynchronizeWalkResult(results)
 
@@ -96,7 +98,7 @@ func Generate(startPath string, environments []string, validate bool) (component
 	}
 
 	if err == nil {
-		log.Info(emoji.Sprintf(":raised_hands: Finished generate"))
+		logger.Info(emoji.Sprintf(":raised_hands: Finished generate"))
 	}
 
 	return components, err

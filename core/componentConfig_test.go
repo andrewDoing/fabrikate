@@ -10,7 +10,7 @@ import (
 
 func TestLoad(t *testing.T) {
 	config := ComponentConfig{
-		Path: "../test/fixtures/load",
+		Path: "../testdata/load",
 	}
 
 	err := config.Load("test")
@@ -20,12 +20,30 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, "myapp", config.Namespace)
 }
 
+func TestFailedYAMLLoad(t *testing.T) {
+	config := ComponentConfig{
+		Path: "../testdata/badyamlconfig",
+	}
+
+	err := config.Load("common")
+	assert.NotNil(t, err)
+}
+
+func TestFailedJSONLoad(t *testing.T) {
+	config := ComponentConfig{
+		Path: "../testdata/badjsonconfig",
+	}
+
+	err := config.Load("common")
+	assert.NotNil(t, err)
+}
+
 func TestMerge(t *testing.T) {
-	currentConfig := NewComponentConfig("../test/fixtures/merge")
+	currentConfig := NewComponentConfig("../testdata/merge")
 	err := currentConfig.Load("current")
 	assert.Nil(t, err)
 
-	newConfig := NewComponentConfig("../test/fixtures/merge")
+	newConfig := NewComponentConfig("../testdata/merge")
 	err = newConfig.Load("new")
 	assert.Nil(t, err)
 
@@ -50,7 +68,7 @@ func TestMerge(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	config := NewComponentConfig("../test/fixtures/load")
+	config := NewComponentConfig("../testdata/load")
 
 	err := config.Load("test")
 	assert.Nil(t, err)
@@ -74,10 +92,10 @@ func TestSet(t *testing.T) {
 }
 
 func TestWriteYAML(t *testing.T) {
-	_ = os.Remove("../test/fixtures/write/config/test.yaml")
+	_ = os.Remove("../testdata/write/config/test.yaml")
 
 	config := ComponentConfig{
-		Path:          "../test/fixtures/write",
+		Path:          "../testdata/write",
 		Serialization: "yaml",
 		Config: map[string]interface{}{
 			"foo": "bar",
@@ -94,16 +112,16 @@ func TestWriteYAML(t *testing.T) {
 	err := config.Write("test")
 	assert.Nil(t, err)
 
-	configContents, err := ioutil.ReadFile("../test/fixtures/write/config/test.yaml")
+	configContents, err := ioutil.ReadFile("../testdata/write/config/test.yaml")
 	assert.Nil(t, err)
 	assert.Equal(t, 70, len(configContents))
 }
 
 func TestWriteJSON(t *testing.T) {
-	_ = os.Remove("../test/fixtures/write/config/test.json")
+	_ = os.Remove("../testdata/write/config/test.json")
 
 	config := ComponentConfig{
-		Path:          "../test/fixtures/write",
+		Path:          "../testdata/write",
 		Serialization: "json",
 		Config: map[string]interface{}{
 			"foo": "bar",
@@ -120,7 +138,39 @@ func TestWriteJSON(t *testing.T) {
 	err := config.Write("test")
 	assert.Nil(t, err)
 
-	configContents, err := ioutil.ReadFile("../test/fixtures/write/config/test.json")
+	configContents, err := ioutil.ReadFile("../testdata/write/config/test.json")
 	assert.Nil(t, err)
 	assert.Equal(t, 132, len(configContents))
+}
+
+func TestDisabledDefault(t *testing.T) {
+	config := NewComponentConfig("../testdata/disabled")
+
+	err := config.Load("default")
+	assert.Nil(t, err)
+
+	cloudNativeSubcomponent := config.Subcomponents["cloud-native"]
+	elasticsearchSubcomponent := config.Subcomponents["elasticsearch"]
+
+	cloudNativeDisabled := cloudNativeSubcomponent.Disabled
+	assert.Equal(t, false, cloudNativeDisabled)
+
+	elasticsearchDisabled := elasticsearchSubcomponent.Disabled
+	assert.Equal(t, false, elasticsearchDisabled)
+}
+
+func TestDisabledTrue(t *testing.T) {
+	config := NewComponentConfig("../testdata/disabled")
+
+	err := config.Load("disabled")
+	assert.Nil(t, err)
+
+	cloudNativeSubcomponent := config.Subcomponents["cloud-native"]
+	elasticsearchSubcomponent := config.Subcomponents["elasticsearch"]
+
+	cloudNativeDisabled := cloudNativeSubcomponent.Disabled
+	assert.Equal(t, true, cloudNativeDisabled)
+
+	elasticsearchDisabled := elasticsearchSubcomponent.Disabled
+	assert.Equal(t, true, elasticsearchDisabled)
 }
